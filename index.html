@@ -228,10 +228,26 @@
     }
   }
 
-  // Restore the drawn state on page load
+  // On page load:
+  //  - Refresh (F5 / reload): keep the drawn state locked
+  //  - Fresh entry via the URL: clear the record and allow drawing again
+  var isReload = false;
+  try {
+    var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    if (navEntry) {
+      isReload = navEntry.type === 'reload';
+    } else if (performance.navigation) {
+      isReload = performance.navigation.type === 1; // legacy TYPE_RELOAD
+    }
+  } catch (e) {}
+
   var saved = getRecord();
   if (saved && typeof saved.idx === 'number') {
-    setDrawnState(saved);
+    if (isReload) {
+      setDrawnState(saved);
+    } else if (STORAGE_OK) {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    }
   }
 
   function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
