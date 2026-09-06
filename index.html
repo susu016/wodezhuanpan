@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>幸运大转盘</title>
+<title>Lucky Wheel</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -53,15 +53,6 @@
     border-top: 34px solid #e74c3c;
     filter: drop-shadow(0 3px 4px rgba(0,0,0,.3));
     z-index: 3;
-  }
-  .pointer::after {
-    content: "";
-    position: absolute;
-    top: -40px; left: -11px;
-    width: 22px; height: 22px;
-    background: #e74c3c;
-    border-radius: 50%;
-    border: 4px solid #fff;
   }
   #spinBtn {
     position: absolute;
@@ -137,26 +128,26 @@
 </head>
 <body>
   <div class="card">
-    <h1>幸运大转盘</h1>
+    <h1>Lucky Wheel</h1>
     <div class="wheel-box">
       <div class="pointer"></div>
       <canvas id="wheel"></canvas>
-      <button id="spinBtn">抽奖</button>
+      <button id="spinBtn">Spin</button>
     </div>
-    <p id="status">每人仅有一次抽奖机会，点击中间按钮开始</p>
+    <p id="status">One draw per person. Click the center button to start</p>
   </div>
 
   <div id="modal" class="modal hidden">
     <div class="modal-box">
-      <p id="modalTip">恭喜您获得</p>
+      <p id="modalTip">Congratulations! You won</p>
       <div id="modalPrize"></div>
-      <button id="modalClose">知道了</button>
+      <button id="modalClose">OK</button>
     </div>
   </div>
 
 <script>
 (function () {
-  var PRIZES = ['一等奖', '二等奖', '三等奖', '四等奖', '五等奖', '幸运奖', '参与奖', '谢谢参与'];
+  var PRIZES = ['First Prize', 'Second Prize', 'Third Prize', 'Fourth Prize', 'Fifth Prize', 'Lucky Prize', 'Consolation', 'Thanks'];
   var COLORS = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF'];
   var STORE_KEY = 'lucky_draw_done';
   var SEG = 360 / PRIZES.length;
@@ -181,7 +172,7 @@
   canvas.height = SIZE * dpr;
   ctx.scale(dpr, dpr);
 
-  // 绘制转盘（静态），旋转通过 CSS transform 实现
+  // Draw the wheel (static); rotation is done via CSS transform
   function drawWheel() {
     ctx.clearRect(0, 0, SIZE, SIZE);
     ctx.translate(R, R);
@@ -199,27 +190,18 @@
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 文字
+      // Labels
       var mid = (-90 + i * SEG + SEG / 2) * Math.PI / 180;
       ctx.save();
       ctx.rotate(mid);
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 17px "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold 15px "Microsoft YaHei", sans-serif';
       ctx.fillStyle = '#fff';
       ctx.shadowColor = 'rgba(0,0,0,.35)';
       ctx.shadowBlur = 3;
       ctx.fillText(PRIZES[i], R - 34, 0);
       ctx.restore();
-    }
-
-    // 外圈装饰圆点
-    for (var d = 0; d < 12; d++) {
-      var ang = d * 30 * Math.PI / 180;
-      ctx.beginPath();
-      ctx.arc(Math.cos(ang) * (R - 5), Math.sin(ang) * (R - 5), 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
     }
   }
   drawWheel();
@@ -237,8 +219,8 @@
   function setDrawnState(record) {
     hasDrawn = true;
     spinBtn.disabled = true;
-    spinBtn.textContent = '已抽过';
-    statusEl.textContent = '您已抽过奖，获得：' + PRIZES[record.idx] + '（每人限抽一次）';
+    spinBtn.textContent = 'Drawn';
+    statusEl.textContent = 'You have already drawn. Prize: ' + PRIZES[record.idx] + ' (one draw per person)';
     statusEl.classList.add('done');
     if (typeof record.rot === 'number') {
       currentRotation = record.rot;
@@ -246,7 +228,7 @@
     }
   }
 
-  // 页面加载时恢复已抽过的状态
+  // Restore the drawn state on page load
   var saved = getRecord();
   if (saved && typeof saved.idx === 'number') {
     setDrawnState(saved);
@@ -271,8 +253,8 @@
   }
 
   function showResult(idx) {
-    var isWin = PRIZES[idx] !== '谢谢参与';
-    modalTip.textContent = isWin ? '恭喜您获得' : '很遗憾，您抽中了';
+    var isWin = PRIZES[idx] !== 'Thanks';
+    modalTip.textContent = isWin ? 'Congratulations! You won' : 'Sorry, you got';
     modalPrize.textContent = PRIZES[idx];
     modal.classList.remove('hidden');
   }
@@ -280,7 +262,7 @@
   spinBtn.addEventListener('click', function () {
     if (spinning || hasDrawn) return;
 
-    // 已抽过（含隐私模式下无存储时的兜底）
+    // Already drawn (fallback for private mode without storage)
     var record = getRecord();
     if (record && typeof record.idx === 'number') {
       setDrawnState(record);
@@ -288,10 +270,10 @@
     }
 
     spinning = true;
-    statusEl.textContent = '转动中，好运即将降临……';
+    statusEl.textContent = 'Spinning... good luck!';
     statusEl.classList.remove('done');
 
-    var idx = 0; // 固定中奖结果：一等奖
+    var idx = 0; // Fixed result: First Prize
     var delta = ((360 - (idx * SEG + SEG / 2) % 360) % 360);
     var to = currentRotation + 360 * 6 + ((delta - currentRotation % 360) + 360) % 360;
 
