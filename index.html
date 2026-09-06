@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>幸运大转盘</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    padding: 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 32px 28px 24px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.25);
+    text-align: center;
+    max-width: 420px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 26px;
+    color: #4a3b8c;
+    margin-bottom: 20px;
+    letter-spacing: 4px;
+  }
+  .wheel-box {
+    position: relative;
+    width: min(86vw, 330px);
+    margin: 0 auto;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 50%;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18), inset 0 0 0 6px #fff;
+  }
+  .pointer {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 34px solid #e74c3c;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,.3));
+    z-index: 3;
+  }
+  .pointer::after {
+    content: "";
+    position: absolute;
+    top: -40px; left: -11px;
+    width: 22px; height: 22px;
+    background: #e74c3c;
+    border-radius: 50%;
+    border: 4px solid #fff;
+  }
+  #spinBtn {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    border: 6px solid #fff;
+    background: linear-gradient(135deg, #ff512f, #dd2476);
+    color: #fff;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0,0,0,.3);
+    z-index: 2;
+    transition: transform .2s, background .3s;
+  }
+  #spinBtn:not(:disabled):hover { transform: translate(-50%, -50%) scale(1.06); }
+  #spinBtn:not(:disabled):active { transform: translate(-50%, -50%) scale(.96); }
+  #spinBtn:disabled {
+    background: #b5b5b5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  #status {
+    margin-top: 18px;
+    color: #888;
+    font-size: 14px;
+    min-height: 20px;
+  }
+  #status.done { color: #e67e22; font-weight: bold; }
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    opacity: 1;
+    transition: opacity .25s;
+  }
+  .modal.hidden { opacity: 0; pointer-events: none; }
+  .modal-box {
+    background: #fff;
+    border-radius: 20px;
+    padding: 36px 44px;
+    text-align: center;
+    transform: scale(1);
+    transition: transform .25s;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  .modal.hidden .modal-box { transform: scale(.8); }
+  #modalTip { color: #666; font-size: 16px; }
+  #modalPrize {
+    font-size: 32px;
+    font-weight: bold;
+    color: #e74c3c;
+    margin: 14px 0 24px;
+  }
+  #modalClose {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 38px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  #modalClose:hover { opacity: .9; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>幸运大转盘</h1>
+    <div class="wheel-box">
+      <div class="pointer"></div>
+      <canvas id="wheel"></canvas>
+      <button id="spinBtn">抽奖</button>
+    </div>
+    <p id="status">每人仅有一次抽奖机会，点击中间按钮开始</p>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <p id="modalTip">恭喜您获得</p>
+      <div id="modalPrize"></div>
+      <button id="modalClose">知道了</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var PRIZES = ['一等奖', '二等奖', '三等奖', '四等奖', '五等奖', '幸运奖', '参与奖', '谢谢参与'];
+  var COLORS = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF'];
+  var STORE_KEY = 'lucky_draw_done';
+  var SEG = 360 / PRIZES.length;
+  var STORAGE_OK = (function () {
+    try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return true; }
+    catch (e) { return false; }
+  })();
+
+  var canvas = document.getElementById('wheel');
+  var ctx = canvas.getContext('2d');
+  var spinBtn = document.getElementById('spinBtn');
+  var statusEl = document.getElementById('status');
+  var modal = document.getElementById('modal');
+  var modalTip = document.getElementById('modalTip');
+  var modalPrize = document.getElementById('modalPrize');
+  var modalClose = document.getElementById('modalClose');
+
+  var dpr = window.devicePixelRatio || 1;
+  var SIZE = 330;
+  var R = SIZE / 2;
+  canvas.width = SIZE * dpr;
+  canvas.height = SIZE * dpr;
+  ctx.scale(dpr, dpr);
+
+  // 绘制转盘（静态），旋转通过 CSS transform 实现
+  function drawWheel() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.translate(R, R);
+
+    for (var i = 0; i < PRIZES.length; i++) {
+      var start = (-90 + i * SEG) * Math.PI / 180;
+      var end = (-90 + (i + 1) * SEG) * Math.PI / 180;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R - 10, start, end);
+      ctx.closePath();
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.8)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 文字
+      var mid = (-90 + i * SEG + SEG / 2) * Math.PI / 180;
+      ctx.save();
+      ctx.rotate(mid);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 17px "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,.35)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(PRIZES[i], R - 34, 0);
+      ctx.restore();
+    }
+
+    // 外圈装饰圆点
+    for (var d = 0; d < 12; d++) {
+      var ang = d * 30 * Math.PI / 180;
+      ctx.beginPath();
+      ctx.arc(Math.cos(ang) * (R - 5), Math.sin(ang) * (R - 5), 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    }
+  }
+  drawWheel();
+
+  var currentRotation = 0;
+  var spinning = false;
+  var hasDrawn = false;
+
+  function getRecord() {
+    if (!STORAGE_OK) return null;
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)); }
+    catch (e) { return null; }
+  }
+
+  function setDrawnState(record) {
+    hasDrawn = true;
+    spinBtn.disabled = true;
+    spinBtn.textContent = '已抽过';
+    statusEl.textContent = '您已抽过奖，获得：' + PRIZES[record.idx] + '（每人限抽一次）';
+    statusEl.classList.add('done');
+    if (typeof record.rot === 'number') {
+      currentRotation = record.rot;
+      canvas.style.transform = 'rotate(' + record.rot + 'deg)';
+    }
+  }
+
+  // 页面加载时恢复已抽过的状态
+  var saved = getRecord();
+  if (saved && typeof saved.idx === 'number') {
+    setDrawnState(saved);
+  }
+
+  function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function animate(from, to, duration, onDone) {
+    var startTime = null;
+    function frame(now) {
+      if (startTime === null) startTime = now;
+      var t = Math.min((now - startTime) / duration, 1);
+      var deg = from + (to - from) * easeOutQuart(t);
+      canvas.style.transform = 'rotate(' + deg + 'deg)';
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        onDone();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function showResult(idx) {
+    var isWin = PRIZES[idx] !== '谢谢参与';
+    modalTip.textContent = isWin ? '恭喜您获得' : '很遗憾，您抽中了';
+    modalPrize.textContent = PRIZES[idx];
+    modal.classList.remove('hidden');
+  }
+
+  spinBtn.addEventListener('click', function () {
+    if (spinning || hasDrawn) return;
+
+    // 已抽过（含隐私模式下无存储时的兜底）
+    var record = getRecord();
+    if (record && typeof record.idx === 'number') {
+      setDrawnState(record);
+      return;
+    }
+
+    spinning = true;
+    statusEl.textContent = '转动中，好运即将降临……';
+    statusEl.classList.remove('done');
+
+    var idx = 0; // 固定中奖结果：一等奖
+    var delta = ((360 - (idx * SEG + SEG / 2) % 360) % 360);
+    var to = currentRotation + 360 * 6 + ((delta - currentRotation % 360) + 360) % 360;
+
+    animate(currentRotation, to, 4200, function () {
+      currentRotation = to;
+      spinning = false;
+      var rec = { idx: idx, rot: to, time: new Date().toISOString() };
+      if (STORAGE_OK) {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(rec)); } catch (e) {}
+      }
+      setDrawnState(rec);
+      setTimeout(function () { showResult(idx); }, 400);
+    });
+  });
+
+  modalClose.addEventListener('click', function () {
+    modal.classList.add('hidden');
+  });
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) modal.classList.add('hidden');
+  });
+})();
+</script>
+</body>
+</html>
